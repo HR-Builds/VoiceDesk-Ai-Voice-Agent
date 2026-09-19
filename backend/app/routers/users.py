@@ -27,13 +27,15 @@ def create_agent(
     if existing:
         raise HTTPException(status_code=400, detail="Email already exists in company")
 
-    agent = models.User(
-    email=data.email,
-    full_name=data.full_name,
-    hashed_password=hash_password(data.password),   # ← YEH LINE zaroori (plain nahi!)
-    role="agent",
-    is_active=True,
-)
+    agent = User(
+        company_id=current_user.company_id,
+        email=payload.email,
+        full_name=payload.full_name,
+        hashed_password=hash_password(payload.password),
+        role=UserRole.AGENT,
+        is_active=True,
+    )
+    
     db.add(agent)
     db.commit()
     db.refresh(agent)

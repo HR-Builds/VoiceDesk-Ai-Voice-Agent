@@ -4,7 +4,7 @@ import base64
 import whisper
 
 # Load model once (downloads on first run ~150MB)
-_model = None
+_model = whisper.load_model("tiny")  # "base" ki jagah "tiny"
 
 def get_model():
     global _model
@@ -12,7 +12,7 @@ def get_model():
         _model = whisper.load_model("base")  # or "tiny" for faster
     return _model
 
-def transcribe_audio(base64_audio: str) -> str:
+def transcribe_audio(base64_audio: str):
     """Decode base64 webm and transcribe with local Whisper."""
     audio_bytes = base64.b64decode(base64_audio)
     
@@ -23,6 +23,6 @@ def transcribe_audio(base64_audio: str) -> str:
     try:
         model = get_model()
         result = model.transcribe(tmp_path)
-        return result["text"].strip()
+        return result["text"].strip(), result.get("language", "en")
     finally:
         os.unlink(tmp_path)
