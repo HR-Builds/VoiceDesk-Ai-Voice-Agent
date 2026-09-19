@@ -6,11 +6,13 @@ import AdminPanel from './pages/AdminPanel';
 import Login from './pages/Login';
 import VoiceWidget from './pages/VoiceWidget';
 import LandingPage from './pages/LandingPage';   // ← apne landing page ke file ke naam se
+import Register from './pages/Register';
 
 export default function App() {
   return (
     <AuthProvider>
       <Routes>
+        <Route path="/register" element={<Register />} />
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<Login />} />
         <Route path="/voice" element={<VoiceWidget />} />
