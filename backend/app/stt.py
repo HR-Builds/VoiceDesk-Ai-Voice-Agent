@@ -3,9 +3,9 @@ import tempfile
 import base64
 import whisper
 
-# Load the small Whisper model once.
-# This keeps memory usage much lower than base/small/medium.
-_model = whisper.load_model("tiny")
+# Whisper is loaded only when the first transcription request arrives.
+# This prevents the model from consuming RAM during FastAPI startup.
+_model = None
 
 
 def get_model():
