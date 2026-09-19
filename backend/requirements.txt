@@ -58,7 +58,6 @@ Pygments==2.21.0
 python-dotenv==1.2.3
 python-jose==3.3.0
 python-multipart==0.0.32
-pywin32==312
 PyYAML==6.0.3
 qdrant-client==1.19.0
 regex==2026.9.3
