@@ -1,45 +1,34 @@
+
 import os
 import tempfile
 import base64
-import whisper
 
-# Whisper is loaded only when the first transcription request arrives.
-# This prevents the model from consuming RAM during FastAPI startup.
-_model = None
+from groq import Groq
 
-
-def get_model():
-    global _model
-
-    if _model is None:
-        _model = whisper.load_model("tiny")
-
-    return _model
+client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 
 def transcribe_audio(base64_audio: str):
-    """Decode base64 WebM audio and transcribe it with local Whisper."""
-
-    # Remove data URL prefix if the frontend sends one.
     if "," in base64_audio:
         base64_audio = base64_audio.split(",", 1)[1]
 
     audio_bytes = base64.b64decode(base64_audio)
 
-    with tempfile.NamedTemporaryFile(
-        delete=False,
-        suffix=".webm"
-    ) as tmp:
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".webm") as tmp:
         tmp.write(audio_bytes)
         tmp_path = tmp.name
 
     try:
-        model = get_model()
-        result = model.transcribe(tmp_path)
+        with open(tmp_path, "rb") as audio_file:
+            result = client.audio.transcriptions.create(
+                file=audio_file,
+                model="whisper-large-v3-turbo",
+                response_format="verbose_json",
+            )
 
         return (
-            result["text"].strip(),
-            result.get("language", "en")
+            result.text.strip(),
+            getattr(result, "language", "en") or "en",
         )
 
     finally:

@@ -1,5 +1,8 @@
+
+import re
 import uuid
 from typing import List
+
 from groq import Groq
 from qdrant_client import QdrantClient
 from qdrant_client.models import (
@@ -13,28 +16,11 @@ from qdrant_client.models import (
 
 from app.config import settings
 
-# Groq client — used for chat/completion generation elsewhere in the app
-groq_client = Groq(api_key=settings.GROQ_API_KEY)
 
-# Qdrant client — vector database for storing document embeddings
+groq_client = Groq(api_key=settings.GROQ_API_KEY)
 qdrant = QdrantClient(url=settings.QDRANT_URL)
 
-# all-MiniLM-L6-v2 produces 384-dimensional embeddings.
 EMBEDDING_DIM = 384
-
-# Embedding model is loaded only when an embedding is actually needed.
-_embedding_model = None
-
-
-def get_embedding_model():
-    global _embedding_model
-
-    if _embedding_model is None:
-        from sentence_transformers import SentenceTransformer
-
-        _embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
-
-    return _embedding_model
 
 
 def ensure_collection():
@@ -54,7 +40,7 @@ def ensure_collection():
 def chunk_text(
     text: str,
     chunk_size: int = 500,
-    overlap: int = 50
+    overlap: int = 50,
 ) -> List[str]:
     chunks = []
     start = 0
@@ -67,15 +53,20 @@ def chunk_text(
     return chunks
 
 
+def _tokens(text: str):
+    return set(re.findall(r"\b[a-zA-Z0-9]{2,}\b", text.lower()))
+
+
 def get_embedding(text: str) -> List[float]:
-    model = get_embedding_model()
-    return model.encode(text).tolist()
+    # Lightweight placeholder vector.
+    # Semantic retrieval is handled by lexical scoring below.
+    return [0.0] * EMBEDDING_DIM
 
 
 def add_document_to_kb(
     company_id: str,
     doc_id: str,
-    content: str
+    content: str,
 ):
     ensure_collection()
 
@@ -83,13 +74,12 @@ def add_document_to_kb(
     points = []
 
     for i, chunk in enumerate(chunks):
-        embedding = get_embedding(chunk)
         point_id = str(uuid.uuid4())
 
         points.append(
             PointStruct(
                 id=point_id,
-                vector=embedding,
+                vector=get_embedding(chunk),
                 payload={
                     "company_id": company_id,
                     "doc_id": doc_id,
@@ -111,24 +101,50 @@ def add_document_to_kb(
 def search_kb(
     company_id: str,
     query: str,
-    top_k: int = 5
+    top_k: int = 5,
 ) -> List[str]:
     ensure_collection()
 
-    embedding = get_embedding(query)
+    query_tokens = _tokens(query)
 
-    result = qdrant.query_points(
+    result, _ = qdrant.scroll(
         collection_name=settings.QDRANT_COLLECTION,
-        limit=top_k,
+        scroll_filter=Filter(
+            must=[
+                FieldCondition(
+                    key="company_id",
+                    match=MatchValue(value=company_id),
+                )
+            ]
+        ),
+        limit=100,
+        with_payload=True,
+        with_vectors=False,
     )
 
-    return [
-        point.payload["text"]
-        for point in result.points
-    ]
+    scored = []
+
+    for point in result:
+        payload = point.payload or {}
+        text = payload.get("text", "")
+
+        if not text:
+            continue
+
+        text_tokens = _tokens(text)
+        score = len(query_tokens.intersection(text_tokens))
+
+        if score > 0:
+            scored.append((score, text))
+
+    scored.sort(key=lambda x: x[0], reverse=True)
+
+    return [text for _, text in scored[:top_k]]
 
 
 def delete_document_vectors(doc_id: str):
+    ensure_collection()
+
     qdrant.delete(
         collection_name=settings.QDRANT_COLLECTION,
         points_selector=Filter(
