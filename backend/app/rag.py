@@ -18,7 +18,10 @@ from app.config import settings
 
 
 groq_client = Groq(api_key=settings.GROQ_API_KEY)
-qdrant = QdrantClient(url=settings.QDRANT_URL)
+qdrant = QdrantClient(
+    url=settings.QDRANT_URL,
+    api_key=settings.QDRANT_API_KEY,
+)
 
 EMBEDDING_DIM = 384
 
